@@ -54,5 +54,5 @@ def run_csv(question):
     else:
         return docs
 
-run_csv(question="What are the total number of the images?")
+# run_csv(question="What are the total number of the images?")
 

@@ -1,217 +1,157 @@
 from dotenv import load_dotenv, find_dotenv
-from langchain.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import Pinecone
-from langchain_openai import OpenAIEmbeddings
-from pinecone import PodSpec
-from pinecone import Pinecone
-from langchain.document_loaders import WikipediaLoader
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.chains.question_answering import load_qa_chain
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
 from langchain_openai import OpenAIEmbeddings
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import Pinecone
-from langchain_openai import OpenAIEmbeddings
-from langchain.chains import RetrievalQA
 from langchain_openai import ChatOpenAI
-from pinecone import PodSpec
+from langchain_community.document_loaders.csv_loader import CSVLoader
+from langchain_community.document_loaders import TextLoader
+from langchain_community.document_loaders.image import UnstructuredImageLoader
+from langchain_experimental.open_clip import OpenCLIPEmbeddings
+from langchain_text_splitters import RecursiveJsonSplitter
+from langchain_community.document_loaders import JSONLoader
+from langchain.chains import ConversationalRetrievalChain
 import os
-import tiktoken
-import pinecone
+import json
+from pathlib import Path
+from pprint import pprint
+
 load_dotenv(find_dotenv(), override=True)
 
-os.environ["PINECONE_API_KEY"] = '9c9b0591-23b8-4265-91a6-dab98f3ba418'
-os.environ["OPENAI_API_KEY"] = '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'
-
-def load_document(file):
-  print(f'Loading{file}')
-  loader = PyPDFLoader(file)
-  data = loader.load()
-  return data
+pinecone_key = os.getenv("PINECONE_API_KEY")
+open_api_key = os.getenv("OPENAI_API_KEY")
+pdf_dir_path = './Dataset_HandsonGenAI-task/LiteratureData/'
+surface_defect_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/annotations'
+blade_turbine_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Wind turbines and blades/annotations'
+python_file_path = './Dataset_HandsonGenAI-task/PythonScripts'
+crack_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/images/crack'
+erosion_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/images/erosion'
+good_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/images/good'
+paintoff_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/images/paintoff'
+scratch_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Surface defects/images/scratch'
+blade_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Wind turbines and blades/images/blade'
+turbine_img_path = './Dataset_HandsonGenAI-task/Image_SupervisedInput/Wind turbines and blades/images/turbine'
+wesgraph_path = './Dataset_HandsonGenAI-task'
 
 # loading PDF, DOCX and TXT files as LangChain Documents
-def load_document(file):
-    name, extension = os.path.splitext(file)
+def load_document(directory, expression=None):
+    documents = []
+    files = os.listdir(directory)
+    for file in files:
+        name, extension = os.path.splitext(file)
+        if extension == '.pdf':
+            pdf_path = os.path.join(directory, file)
+            loader = PyPDFLoader(pdf_path)
+            documents.extend(loader.load())
+        elif extension == '.csv' and name == 'crack':
+            csv_path = os.path.join(directory, file)
+            loader = CSVLoader(csv_path)
+            documents.extend(loader.load())
+        elif extension == '.py':
+            script_path = os.path.join(directory, file)
+            loader = TextLoader(script_path)
+            documents.extend(loader.load())
+        elif extension == '.jpg':
+            img_path = os.path.join(directory, file)
+            loader = UnstructuredImageLoader(img_path)
+            documents.extend(loader.load())
+        elif extension == '.json':
+            json_file_path = os.path.join(wesgraph_path, file)
+            loader = JSONLoader(
+                file_path=json_file_path,
+                jq_schema=expression,
+                text_content=False)
+            documents.extend(loader.load())
+    return documents
 
-    if extension == '.pdf':
-        from langchain.document_loaders import PyPDFLoader
-        print(f'Loading {file}')
-        loader = PyPDFLoader(file)
-    elif extension == '.docx':
-        from langchain.document_loaders import Docx2txtLoader
-        print(f'Loading {file}')
-        loader = Docx2txtLoader(file)
-    elif extension == '.txt':
-        from langchain.document_loaders import TextLoader
-        loader = TextLoader(file)
-    else:
-        print('Document format is not supported!')
-        return None
-
-    data = loader.load()
-    return data
-
-# wikipedia
-def load_from_wikipedia(query, lang='en', load_max_docs=2):
-    loader = WikipediaLoader(query=query, lang=lang, load_max_docs=load_max_docs)
-    data = loader.load()
-    return data
 
 def chunk_data(data, chunk_size=256):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=0)
     chunks = text_splitter.split_documents(data)
     return chunks
 
-def print_embedding_cost(texts):
-    # enc = tiktoken.encoding_for_model('text-embedding-3-small')
-    enc = tiktoken.get_encoding('cl100k_base')
-    total_tokens = sum([len(enc.encode(page.page_content)) for page in texts])
-    print(f'Total Tokens: {total_tokens}')
-    print(f'Embedding Cost in USD: {total_tokens / 1000 * 0.00002:.6f}')
-'''''
-def insert_or_fetch_embeddings(index_name, chunks):
-    # importing the necessary libraries and initializing the Pinecone client
+def json_chunk_data(data, chunk_size=300):
+    splitter = RecursiveJsonSplitter(max_chunk_size=chunk_size)
+    json_chunks = splitter.split_json(json_data=data)
+    print(json_chunks)
+    return json_chunks
 
-    os.environ["PINECONE_API_KEY"] = "9c9b0591-23b8-4265-91a6-dab98f3ba418"
-    OPENAI_API_KEY = "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"
-
-    pc = pinecone.Pinecone(api_key='9c9b0591-23b8-4265-91a6-dab98f3ba418')
-    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', dimensions=1536, api_key=OPENAI_API_KEY)
-
-    # loading from existing index
-    if index_name in pc.list_indexes():
-        print(f'Index {index_name} already exists. Loading embeddings ... ', end='')
-        vector_store = Pinecone.from_existing_index(index_name, embeddings)
-        print('Ok')
-    else:
-        # creating the index and embedding the chunks into the index
-        print(f'Creating index {index_name} and embeddings ...', end='')
-        # creating a new index
-        pc.create_index(
-            name=index_name,
-            dimension=1536,
-            metric='cosine',
-            spec=PodSpec(
-                environment='gcp-starter'
-            )
-        )
-        vector_store = Pinecone.from_documents(chunks, embeddings, index_name=index_name)
-        print('Ok')
-
-    return vector_store
-
-
-def delete_pinecone_index(index_name='all', api_key="9c9b0591-23b8-4265-91a6-dab98f3ba418"):
-    pc = pinecone.Pinecone()
-    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', dimensions=1536, api_key='config.ini')
-
-    if index_name == 'all':
-        indexes = pc.list_indexes().names()
-        print('Deleting all indexes ... ')
-        for index in indexes:
-            pc.delete_index(index)
-        print('Ok')
-    else:
-        print(f'Deleting index {index_name} ...', end='')
-        pc.delete_index(index_name)
-        print('Ok')
-
-
-def ask_and_get_answer(vector_store, q, k=3):
-    OPENAI_API_KEY = "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"
-
-    llm = ChatOpenAI(model='gpt-3.5-turbo', temperature=1, openai_api_key=OPENAI_API_KEY)
-    retriever = vector_store.as_retriever(search_type='similarity', search_kwargs={'k': k})
-
-    chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
-
-    answer = chain.invoke(q)
-    return answer
-    
-
-'''
 def create_embeddings_chroma(chunks, persist_directory='./chroma_db'):
-
-    OPENAI_API_KEY = "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"
-
     # Instantiate an embedding model from OpenAI (smaller version for efficiency)
     # embeddings = OpenAIEmbeddings(model='text-embedding-3-small', dimensions=1536, api_key=OPENAI_API_KEY)
-    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', api_key=OPENAI_API_KEY)
-
+    print(chunks)
+    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', api_key=open_api_key)
     # Create a Chroma vector store using the provided text chunks and embedding model,
     # configuring it to save data to the specified directory
     vector_store = Chroma.from_documents(chunks, embeddings, persist_directory=persist_directory)
-
     return vector_store  # Return the created vector store
 
-def load_embeddings_chroma(persist_directory='./chroma_db'):
-    OPENAI_API_KEY = "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"
 
-    # Instantiate the same embedding model used during creation
-    embeddings = OpenAIEmbeddings(model='text-embedding-3-small', dimensions=1536, api_key=OPENAI_API_KEY)
+def create_image_embeddings(img_raw_data):
+    model_name = "ViT-B-32"
+    checkpoint = "laion2b_s34b_b79k"
+    clip_embd = OpenCLIPEmbeddings(model_name=model_name, checkpoint=checkpoint)
+    print(img_raw_data)
 
-    # Load a Chroma vector store from the specified directory, using the provided embedding function
-    vector_store = Chroma(persist_directory=persist_directory, embedding_function=embeddings)
 
-    return vector_store  # Return the loaded vector store
 
-# # Loading the pdf document into LangChain
-# data = load_document('/Users/priya/Bot_Builder/ChatBot/Dataset_HandsonGenAI-task/LiteratureData/2301.03228.pdf')
-# # Splitting the document into chunks
-# chunks = chunk_data(data, chunk_size=150)
-# # Creating a Chroma vector store using the provided text chunks and embedding model (default is text-embedding-3-small)
-# vector_store = create_embeddings_chroma(chunks)
 
 def ask_and_get_answer(vector_store, q, k=3):
-    from langchain.chains import RetrievalQA
-    from langchain_openai import ChatOpenAI
-    OPENAI_API_KEY = "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"
-
-    llm = ChatOpenAI(model='gpt-3.5-turbo', temperature=1, openai_api_key=OPENAI_API_KEY)
-    retriever = vector_store.as_retriever(search_type='similarity', search_kwargs={'k': k})
-
-    chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
-
-    answer = chain.invoke(q)
+    llm = ChatOpenAI(model='gpt-3.5-turbo', temperature=1, openai_api_key=open_api_key)
+    chain = load_qa_chain(llm, chain_type="stuff", verbose=True)
+    matching_docs = vector_store.similarity_search(q, k)
+    answer = chain.run(input_documents=matching_docs, question=q)
     return answer
 
-# # Asking questions
-# q = 'What is the whole document about?'
-# answer = ask_and_get_answer(vector_store, q)
-# print(answer)
+def qa(vector_store):
+    chain = ConversationalRetrievalChain.from_llm(
+        ChatOpenAI(temperature=0.7, model_name='gpt-3.5-turbo'),
+        retriever=vector_store.as_retriever(search_kwargs={'k': 6}),
+        return_source_documents=True,
+        verbose=False
+    )
+    answer = chain.invoke()
 
-def run(question):
-    # data = load_document('./Dataset_HandsonGenAI-task/LiteratureData/2301.03228.pdf')
-    # chunks = chunk_data(data)[:100]  # Selecting only the first 150 chunks
-    # print(len(chunks))
-    # print(chunks[10].page_content)
-    # print_embedding_cost(chunks)
-    # index_name = 'askadocument'
-    # vector_store = insert_or_fetch_embeddings(index_name, chunks)
-    # answer = ask_and_get_answer(vector_store, question)
-    # print(answer)
-    # return answer
-    # index_name = 'priya'
-    # vector_store = insert_or_fetch_embeddings(index_name, chunks)
-    # pc = Pinecone(api_key="9c9b0591-23b8-4265-91a6-dab98f3ba418")
-    # # Print the list of existing indexes
-    # existing_indexes = pc.list_indexes()
-    # print("Existing indexes:", existing_indexes)
-    # q = 'What is the whole document about?'
-    # answer = ask_and_get_answer(vector_store, q)
-    # print(answer)
-
-    # Loading the pdf document into LangChain
-    data = load_document('./Dataset_HandsonGenAI-task/LiteratureData/2301.03228.pdf')
-    # Splitting the document into chunks
-    chunks = chunk_data(data, chunk_size=150)
-    # Creating a Chroma vector store using the provided text chunks and embedding model (default is text-embedding-3-small)
+def run_server(question):
+    final_raw_data = []
+    img_raw_data = []
+    json_raw_data = []
+    chunks_list = []
+    if '@json' in question:
+        wesgraph_json_data = load_document(wesgraph_path, expression='.nodes | map(.properties)')
+        final_raw_data.extend(wesgraph_json_data)
+    else:
+        python_scripts_data = load_document(python_file_path)
+        final_raw_data.extend(python_scripts_data)
+    # Commented image embed due to openclip embeddings experimental error (not sure) need to look into it
+    # crack_img_data = load_document(crack_img_path)
+    # img_raw_data.extend(crack_img_data)
+    # erosion_img_data = load_document(erosion_img_path)
+    # img_raw_data.extend(erosion_img_data)
+    # good_img_data = load_document(good_img_path)
+    # img_raw_data.extend(good_img_data)
+    # paintoff_img_data = load_document(paintoff_img_path)
+    # img_raw_data.extend(paintoff_img_data)
+    # blade_img_data = load_document(blade_img_path)
+    # img_raw_data.extend(blade_img_data)
+    # turbine_img_data = load_document(turbine_img_path)
+    # img_raw_data.extend(turbine_img_data)
+    # # Splitting the document into chunks
+    # if 'image' in question or 'picture' in question or 'photo' in question or 'jpg' in question:
+    #     img_store = create_image_embeddings(json_raw_data)
+    chunks = chunk_data(final_raw_data, chunk_size=10000)
+    # # Creating a Chroma vector store using the provided text chunks and embedding model (default is text-embedding-3-small)
     vector_store = create_embeddings_chroma(chunks)
-    # Asking questions
-    answer = ask_and_get_answer(vector_store, question)
+    # # Asking questions
+    cleaned_question = question.replace("@json ", "")
+    cleaned_question = cleaned_question.replace("@pdf ", "")
+    answer = ask_and_get_answer(vector_store, cleaned_question)
     print(answer)
-    return answer['result']
+    return answer
 
 
-
-# run(question='What is the whole document about?')
+# run_server('what is the formula for calculating the yawfatigue?') #python question
+# run_server('What is the total number of the images related to crack?') # csv question
+# run_server('@json what are the properties of monopile?') #json question
+# run_server('@json what are the authors in edges?') #json question

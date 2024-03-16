@@ -41,7 +41,7 @@ importlib-resources==6.1.1
 jsonpatch==1.33
 jsonpointer==2.4
 kubernetes==29.0.0
-langchain==0.1.0
+langchain
 langchain-community==0.0.12
 langchain-core==0.1.14
 langchain-openai==0.0.3
@@ -108,3 +108,12 @@ wrapt==1.16.0
 yarl==1.9.4
 zipp==3.17.0
 pinecone-client
+pathlib~=1.0.1
+streamlit~=1.32.1
+pytesseract~=0.3.10
+unstructured~=0.12.6
+certifi==2024.2.2
+dataclasses-json==0.6.4
+numpy==1.26.4
+tqdm==4.66.2
+urllib3==1.26.18

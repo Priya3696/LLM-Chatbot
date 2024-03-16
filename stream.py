@@ -1,28 +1,25 @@
 import streamlit as st
 import random
 import time
-from main import run
+from main import run_server
+from multimodal import run
 from main1 import run_csv
 
 
 # Streamed response emulator
 def response_generator(question):
-    if "pdf" in question:
+    if "@pdf" in question or "@csv" in question:
         response = run(question)
         print(f"response in streamlit: {response}")
-        # for word in response.split():
-        #     yield word + " "
-        #     time.sleep(0.05)
         yield response
-    elif "csv" in question:
-        response = run_csv(question)
+    elif "@json" in question:
+        response = run_server(question)
         print(f"response in streamlit: {response}")
-        # for word in response.split():
-        #     yield word + " "
-        #     time.sleep(0.05)
         yield response
     else:
-        yield "ask me about pdf or csv.. :)"
+        response = run_server(question)
+        print(f"response in streamlit: {response}")
+        yield response
 
 
 
