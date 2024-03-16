@@ -4,5 +4,5 @@ This project entails the development of a Multimodal-RAG (Retrieve-And-Generate)
 
 
 
-https://github.com/Priya3696/LLM-Chatbot/assets/97293487/bd863495-3b5d-4856-8e82-b72b027e2314
+
 
