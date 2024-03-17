@@ -88,8 +88,7 @@ def partion_pdf_elements(input_path):
         name, extension = os.path.splitext(file)
         file_name = os.path.join(input_path, file)
         print(f"file name of pdf: {file_name}")
-        if "2301.03228.pdf" in file_name:
-            raw_pdf_elements = partition_pdf(filename=file_name,
+        raw_pdf_elements = partition_pdf(filename=file_name,
                                              extract_images_in_pdf=True,
                                              infer_table_structure=True,
                                              strategy="fast",
@@ -97,8 +96,7 @@ def partion_pdf_elements(input_path):
                                              new_after_n_chars=3800,
                                              combine_text_under_n_chars=2000,
                                              image_output_dir_path=os.path.join(now_cwd, 'output'))
-            print(raw_pdf_elements)
-            break
+        print(raw_pdf_elements)
     return raw_pdf_elements
 
 def encode_image(image_path):
